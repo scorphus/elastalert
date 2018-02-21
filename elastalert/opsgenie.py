@@ -21,7 +21,7 @@ class OpsGenieAlerter(Alerter):
         self.recipients = self.rule.get('opsgenie_recipients')
         self.teams = self.rule.get('opsgenie_teams')
         self.tags = self.rule.get('opsgenie_tags', []) + ['ElastAlert', self.rule['name']]
-        self.to_addr = self.rule.get('opsgenie_addr', 'https://api.opsgenie.com/v1/json/alert')
+        self.to_addr = self.rule.get('opsgenie_addr', 'https://api.opsgenie.com/v2/alerts')
         self.custom_message = self.rule.get('opsgenie_message')
         self.opsgenie_subject = self.rule.get('opsgenie_subject')
         self.opsgenie_subject_args = self.rule.get('opsgenie_subject_args')
@@ -42,10 +42,7 @@ class OpsGenieAlerter(Alerter):
             self.message = self.custom_message.format(**matches[0])
 
         post = {}
-        post['apiKey'] = self.api_key
         post['message'] = self.message
-        if self.account:
-            post['user'] = self.account
         if self.recipients:
             post['recipients'] = self.recipients
         if self.teams:
@@ -59,7 +56,10 @@ class OpsGenieAlerter(Alerter):
 
         logging.debug(json.dumps(post))
 
-        headers = {'content-type': 'application/json'}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': 'GenieKey {}'.format(self.api_key),
+        }
         # set https proxy, if it was provided
         proxies = {'https': self.opsgenie_proxy} if self.opsgenie_proxy else None
 
@@ -67,7 +67,7 @@ class OpsGenieAlerter(Alerter):
             r = requests.post(self.to_addr, json=post, headers=headers, proxies=proxies)
 
             logging.debug('request response: {0}'.format(r))
-            if r.status_code != 200:
+            if r.status_code != 202:
                 elastalert_logger.info("Error response from {0} \n "
                                        "API Response: {1}".format(self.to_addr, r))
                 r.raise_for_status()
